@@ -90,19 +90,30 @@ void setup()
   Serial.println("USB Boot Mouse pass through");
 }
 
+const uint16_t  PERIXX_VID = 0x1ddd;
+const uint16_t  PERIXX_501_PID = 0x2819;
+
 typedef struct {
   uint8_t report[16];
+  uint32_t report_count = 0;
+  uint32_t available_count = 0;
+  uint32_t last_millis = 0;
   uint8_t len;
-  bool available;
+  bool available = false;
+  bool Perixx_501 = false;
 } Mouse_state_t;
 
 volatile Mouse_state_t Mouse_Report;
 
 void loop()
 {
+  FSJoystick_Report_t joyRpt = {0};
   if (Mouse_Report.available) {
-    if ((Mouse_Report.len > 2) && FSJoy.ready()) {
-      FSJoystick_Report_t joyRpt = {0};
+    if (!FSJoy.ready()) {
+      delay(1);
+      return;
+    }
+    if (Mouse_Report.len > 2) {
       // Comment out this line to disable buttons. This eliminates accidental
       // button clicks when using using a trackball operated by foot.
       joyRpt.buttons_a = Mouse_Report.report[0];
@@ -110,8 +121,17 @@ void loop()
       joyRpt.y = map(Mouse_Report.report[2], SCHAR_MIN, SCHAR_MAX, 0, 1023);
       G_usb_hid.sendReport(0, (void *)&joyRpt, sizeof(joyRpt));
     }
+    Mouse_Report.available = false;
+  } else {
+    if ((millis() - Mouse_Report.last_millis) > 31) {
+      // Center x,y if no HID report for 32 ms. Preserve the buttons state.
+      joyRpt.buttons_a = Mouse_Report.report[0];
+      joyRpt.x = 511;
+      joyRpt.y = 511;
+      G_usb_hid.sendReport(0, (void *)&joyRpt, sizeof(joyRpt));
+      Mouse_Report.last_millis = millis();
+    }
   }
-  Mouse_Report.available = false;
 }
 
 //--------------------------------------------------------------------+
@@ -153,7 +173,6 @@ void loop1()
   USBHost.task();
 }
 
-
 // Invoked when device with hid interface is mounted
 // Report descriptor is also available for use.
 // tuh_hid_parse_report_descriptor() can be used to parse common/simple enough
@@ -168,9 +187,12 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
   Serial.printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
   Serial.printf("VID = %04x, PID = %04x\r\n", vid, pid);
 
+  Mouse_Report.Perixx_501 = (vid == PERIXX_VID) && (pid == PERIXX_501_PID);
+  Mouse_Report.report_count = 0;
+  Mouse_Report.available_count = 0;
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
-  if (itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
-    Serial.println("HID Mouse");
+  if ((itf_protocol == HID_ITF_PROTOCOL_MOUSE) || Mouse_Report.Perixx_501){
+    Serial.println("HID Pointer");
     if (!tuh_hid_receive_report(dev_addr, instance)) {
       Serial.println("Error: cannot request to receive report");
     }
@@ -185,13 +207,21 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
     uint8_t const *report, uint16_t len) {
+  Mouse_Report.report_count++;
   if (Mouse_Report.available) {
     static uint32_t dropped = 0;
     Serial.printf("drops=%lu\r\n", ++dropped);
   } else {
+    if (Mouse_Report.Perixx_501) {
+      // Skip first byte which is report ID.
+      report++;
+      len--;
+    }
     memcpy((void *)Mouse_Report.report, report, min(len, sizeof(Mouse_Report.report)));
     Mouse_Report.len = len;
     Mouse_Report.available = true;
+    Mouse_Report.available_count++;
+    Mouse_Report.last_millis = millis();
   }
   // continue to request to receive report
   if (!tuh_hid_receive_report(dev_addr, instance)) {

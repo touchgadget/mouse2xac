@@ -4,6 +4,12 @@ Translate USB mouse/trackball to USB joystick compatible with Xbox Adaptive
 Controller. A Kensington trackball works well with this program. A large
 trackball can be operated by foot, wrist, elbow, etc.
 
+The Perixx PeriPad 501 glidepad now works. Only a light touch is required
+to move the joystick.
+
+Be sure to use the Xbox joystick calibration to make full use of the pointing
+device (mouse, trackball, or glidepad).
+
 ## Hardware
 
 For Adafruit RP2040 Feather USB Host board. The board supports USB host
