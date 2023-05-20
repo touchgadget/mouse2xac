@@ -184,6 +184,10 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
 
   Serial.printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
   Serial.printf("VID = %04x, PID = %04x\r\n", vid, pid);
+  uint8_t const protocol_mode = tuh_hid_get_protocol(dev_addr, instance);
+  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+  Serial.printf("protocol_mode=%d,itf_protocol=%d\r\n",
+      protocol_mode, itf_protocol);
 
   const size_t REPORT_INFO_MAX = 8;
   tuh_hid_report_info_t report_info[REPORT_INFO_MAX];
@@ -196,8 +200,14 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
     Mouse_Report.skip_report_id = false;
     Mouse_Report.hid_mouse = false;
     if ((report_info[i].usage_page == 1) && (report_info[i].usage == 2)) {
+      // Mouse report
       Mouse_Report.hid_mouse = true;
-      Mouse_Report.skip_report_id = (report_info[i].report_id != 0);
+      if (itf_protocol == HID_ITF_PROTOCOL_NONE)
+        Mouse_Report.skip_report_id = report_info[i].report_id != 0;
+      else if (protocol_mode == HID_PROTOCOL_BOOT)
+        Mouse_Report.skip_report_id = false;
+      else
+        Mouse_Report.skip_report_id = report_info[i].report_id != 0;
       break;
     }
   }
@@ -211,7 +221,6 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
 
   Mouse_Report.report_count = 0;
   Mouse_Report.available_count = 0;
-  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
   if ((itf_protocol == HID_ITF_PROTOCOL_MOUSE) || Mouse_Report.hid_mouse){
     Serial.println("HID Pointer");
     if (!tuh_hid_receive_report(dev_addr, instance)) {
