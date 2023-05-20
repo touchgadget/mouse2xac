@@ -90,9 +90,6 @@ void setup()
   Serial.println("USB Boot Mouse pass through");
 }
 
-const uint16_t  PERIXX_VID = 0x1ddd;
-const uint16_t  PERIXX_501_PID = 0x2819;
-
 typedef struct {
   uint8_t report[16];
   uint32_t report_count = 0;
@@ -100,7 +97,8 @@ typedef struct {
   uint32_t last_millis = 0;
   uint8_t len;
   bool available = false;
-  bool Perixx_501 = false;
+  bool skip_report_id;
+  bool hid_mouse;
 } Mouse_state_t;
 
 volatile Mouse_state_t Mouse_Report;
@@ -187,11 +185,34 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
   Serial.printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
   Serial.printf("VID = %04x, PID = %04x\r\n", vid, pid);
 
-  Mouse_Report.Perixx_501 = (vid == PERIXX_VID) && (pid == PERIXX_501_PID);
+  const size_t REPORT_INFO_MAX = 8;
+  tuh_hid_report_info_t report_info[REPORT_INFO_MAX];
+  uint8_t report_num = tuh_hid_parse_report_descriptor(report_info,
+      REPORT_INFO_MAX, desc_report, desc_len);
+  Serial.printf("HID descriptor reports:%d\r\n", report_num);
+  for (size_t i = 0; i < report_num; i++) {
+    Serial.printf("%d,%d,%d\r\n", report_info[i].report_id, report_info[i].usage,
+        report_info[i].usage_page);
+    Mouse_Report.skip_report_id = false;
+    Mouse_Report.hid_mouse = false;
+    if ((report_info[i].usage_page == 1) && (report_info[i].usage == 2)) {
+      Mouse_Report.hid_mouse = true;
+      Mouse_Report.skip_report_id = (report_info[i].report_id != 0);
+      break;
+    }
+  }
+
+  if (desc_report && desc_len) {
+    for (size_t i = 0; i < desc_len; i++) {
+      Serial.printf("%x,", desc_report[i]);
+    }
+    Serial.println();
+  }
+
   Mouse_Report.report_count = 0;
   Mouse_Report.available_count = 0;
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
-  if ((itf_protocol == HID_ITF_PROTOCOL_MOUSE) || Mouse_Report.Perixx_501){
+  if ((itf_protocol == HID_ITF_PROTOCOL_MOUSE) || Mouse_Report.hid_mouse){
     Serial.println("HID Pointer");
     if (!tuh_hid_receive_report(dev_addr, instance)) {
       Serial.println("Error: cannot request to receive report");
@@ -212,7 +233,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
     static uint32_t dropped = 0;
     Serial.printf("drops=%lu\r\n", ++dropped);
   } else {
-    if (Mouse_Report.Perixx_501) {
+    if (Mouse_Report.skip_report_id) {
       // Skip first byte which is report ID.
       report++;
       len--;
