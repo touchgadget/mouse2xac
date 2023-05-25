@@ -11,8 +11,8 @@
 
 /*
  * Stripped down version of hid_mouse_tremor_filter.ino that removes
- * everything except for a USB mouse pass through. This can be used
- * as a foundation for autoclickers and jigglers.
+ * everything except for a USB mouse pass through. Then replace hid mouse
+ * device to XAC compatible joystick.
  */
 
 /*
@@ -85,7 +85,7 @@ void setup()
   FSJoy.write();
 
 #if USB_DEBUG
-  while ( !Serial ) delay(10);   // wait for native usb
+  // while ( !Serial ) delay(10);   // wait for native usb
 #endif
   Serial.println("USB Boot Mouse pass through");
 }
@@ -138,14 +138,14 @@ void loop()
 
 void setup1() {
 #if USB_DEBUG
-  while ( !Serial ) delay(10);   // wait for native usb
+  // while ( !Serial ) delay(10);   // wait for native usb
 #endif
   Serial.println("Core1 setup to run TinyUSB host with pio-usb");
 
   // Check for CPU frequency, must be multiple of 120Mhz for bit-banging USB
   uint32_t cpu_hz = clock_get_hz(clk_sys);
   if ( cpu_hz != 120000000UL && cpu_hz != 240000000UL ) {
-    while ( !Serial ) delay(10);   // wait for native usb
+    // while ( !Serial ) delay(10);   // wait for native usb
     Serial.printf("Error: CPU Clock = %lu, PIO USB require CPU clock must be multiple of 120 Mhz\r\n", cpu_hz);
     Serial.println("Change your CPU Clock to either 120 or 240 Mhz in Menu->CPU Speed");
     while(1) delay(1);
