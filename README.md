@@ -1,5 +1,7 @@
 # USB Mouse to XAC Joystick
 
+![XAC connected to Logitech trackball via Adafruit board](./images/mouse2xac.jpg)
+
 Translate USB mouse/trackball to USB joystick compatible with Xbox Adaptive
 Controller. A Kensington trackball works well with this program. A large
 trackball can be operated by foot, wrist, elbow, etc. Be sure to use a
